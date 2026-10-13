@@ -57,7 +57,7 @@ def main():
     )
     data["label"] = label_text.map({
         "negative": 0,
-        "positive": 1,
+        "positve": 1,
     })
 
     data = data.dropna(subset=FEATURES + ["label"]).copy()
