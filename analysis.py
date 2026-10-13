@@ -28,7 +28,8 @@ RANDOM_STATE = 0
 
 OUTPUT_DIR = Path("figures")
 
-CLASS_NAME = ["ER-", "ER+"]
+CLASS_NAMES = ["ER-", "ER+"]
+CLASS_COLORS = ["#377eb8", "#e66101"]
 
 def main():
 
@@ -121,6 +122,137 @@ def main():
     print("\nTest-set results:")
     print(results.round(3).to_string())
 
+    # Figure 1
+
+    plt.rcParams.update({
+        "font.size": 11,
+        "figure.dpi": 120,
+    })
+
+    fig1, ax1 = plt.subplots(figsize=(6, 4.5))
+
+    bcl2_groups = [
+        X_train[y_train == label, 0]
+        for label in [0, 1]
+    ]
+
+    boxplot = ax1.boxplot(
+        bcl2_groups,
+        patch_artist=True,
+        widths=0.5,
+        medianprops={"color": "black", "linewidth": 1.5},
+    )
+
+    for box, color in zip(boxplot["boxes"], CLASS_COLORS):
+        box.set_facecolor(color)
+        box.set_alpha(0.65)
+
+    ax1.set_xticks([1, 2])
+    ax1.set_xticklabels(CLASS_NAMES)
+    ax1.set_xlabel("ER status measured by IHC")
+    ax1.set_ylabel("BCL2 expression (z-score)")
+    ax1.set_title("Figure 1: BCL2 expression by ER status\nTraining set")
+    ax1.grid(axis="y", alpha=0.25)
+
+    fig1.tight_layout()
+
+    # Figure 2
+
+    plt.rcParams.update({
+        "font.size": 11,
+        "figure.dpi": 120,
+    })
+
+    fig2, ax2 = plt.subplots(figsize=(6, 4.5))
+
+    gata3_groups = [
+        X_train[y_train == label, 1]
+        for label in [0, 1]
+    ]
+
+    boxplot = ax2.boxplot(
+        gata3_groups,
+        patch_artist=True,
+        widths=0.5,
+        medianprops={"color": "black", "linewidth": 1.5},
+    )
+
+    for box, color in zip(boxplot["boxes"], CLASS_COLORS):
+        box.set_facecolor(color)
+        box.set_alpha(0.65)
+
+    ax2.set_xticks([1, 2])
+    ax2.set_xticklabels(CLASS_NAMES)
+    ax2.set_xlabel("ER status measured by IHC")
+    ax2.set_ylabel("GATA3 expression (z-score)")
+    ax2.set_title("Figure 2: GATA3 expression by ER status\nTraining set")
+    ax2.grid(axis="y", alpha=0.25)
+
+    fig2.tight_layout()
+
+    # Figure 3
+
+    fig3, ax3 = plt.subplots(figsize=(6, 4.5))
+
+    for label, class_name, color in zip(
+        [0, 1], CLASS_NAMES, CLASS_COLORS
+    ):
+        mask = y_train == label
+
+        ax3.scatter(
+            X_train[mask, 0],
+            X_train[mask, 1],
+            label=class_name,
+            color=color,
+            alpha=0.45,
+            s=20,
+            edgecolors="none",
+        )
+
+    ax3.set_xlabel("BCL2 expression (z-score)")
+    ax3.set_ylabel("GATA3 expression (z-score)")
+    ax3.set_title("Figure 3: BCL2 and GATA3 expression\nTraining set")
+    ax3.legend(title="IHC label")
+    ax3.grid(alpha=0.2)
+
+    fig3.tight_layout()
+
+    # Figure 4: Test-set confusion matrix
+
+    fig4, ax4 = plt.subplots(figsize=(6, 4.5))
+
+    ConfusionMatrixDisplay.from_predictions(
+        y_test,
+        model_pred,
+        labels=[0, 1],
+        display_labels=CLASS_NAMES,
+        cmap="Blues",
+        values_format="d",
+        colorbar=False,
+        ax=ax4,
+    )
+
+    ax4.set_title(
+        "Figure 4: Logistic regression — test set"
+    )
+
+    fig4.tight_layout()
     
+    figures = [
+            (fig1, "figure_1_bcl2_boxplot.png"),
+            (fig2, "figure_2_gata3_boxplot.png"),
+            (fig3, "figure_3_gene_expression_scatter.png"),
+            (fig4, "figure_4_confusion_matrix.png"),
+        ]
+
+    for figure, filename in figures:
+        figure.savefig(
+            OUTPUT_DIR / filename,
+            dpi=200,
+            bbox_inches="tight",
+        )
+
+    print(f"\nFigures saved to: {OUTPUT_DIR.resolve()}")
+
 if __name__ == '__main__':
     main()
