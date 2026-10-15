@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, learning_curve, StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -98,9 +98,6 @@ def main():
 
     model_pred = model.predict(X_test)
 
-    # ROC-AUC uses positive-class probabilities, not hard labels.
-    model_prob = model.predict_proba(X_test)[:, 1]
-
     results = pd.DataFrame(
         {
             "Accuracy": [
@@ -111,10 +108,6 @@ def main():
                 balanced_accuracy_score(y_test, baseline_pred),
                 balanced_accuracy_score(y_test, model_pred),
             ],
-            "ROC-AUC": [
-                roc_auc_score(y_test, baseline_prob),
-                roc_auc_score(y_test, model_prob),
-            ],
         },
         index=["Majority-class baseline", "Logistic regression"],
     )
@@ -122,84 +115,21 @@ def main():
     print("\nTest-set results:")
     print(results.round(3).to_string())
 
+    plt.rcParams.update({
+        "font.size": 11,
+        "figure.dpi": 120,
+    })
+
     # Figure 1
 
-    plt.rcParams.update({
-        "font.size": 11,
-        "figure.dpi": 120,
-    })
-
     fig1, ax1 = plt.subplots(figsize=(6, 4.5))
-
-    bcl2_groups = [
-        X_train[y_train == label, 0]
-        for label in [0, 1]
-    ]
-
-    boxplot = ax1.boxplot(
-        bcl2_groups,
-        patch_artist=True,
-        widths=0.5,
-        medianprops={"color": "black", "linewidth": 1.5},
-    )
-
-    for box, color in zip(boxplot["boxes"], CLASS_COLORS):
-        box.set_facecolor(color)
-        box.set_alpha(0.65)
-
-    ax1.set_xticks([1, 2])
-    ax1.set_xticklabels(CLASS_NAMES)
-    ax1.set_xlabel("ER status measured by IHC")
-    ax1.set_ylabel("BCL2 expression (z-score)")
-    ax1.set_title("Figure 1: BCL2 expression by ER status\nTraining set")
-    ax1.grid(axis="y", alpha=0.25)
-
-    fig1.tight_layout()
-
-    # Figure 2
-
-    plt.rcParams.update({
-        "font.size": 11,
-        "figure.dpi": 120,
-    })
-
-    fig2, ax2 = plt.subplots(figsize=(6, 4.5))
-
-    gata3_groups = [
-        X_train[y_train == label, 1]
-        for label in [0, 1]
-    ]
-
-    boxplot = ax2.boxplot(
-        gata3_groups,
-        patch_artist=True,
-        widths=0.5,
-        medianprops={"color": "black", "linewidth": 1.5},
-    )
-
-    for box, color in zip(boxplot["boxes"], CLASS_COLORS):
-        box.set_facecolor(color)
-        box.set_alpha(0.65)
-
-    ax2.set_xticks([1, 2])
-    ax2.set_xticklabels(CLASS_NAMES)
-    ax2.set_xlabel("ER status measured by IHC")
-    ax2.set_ylabel("GATA3 expression (z-score)")
-    ax2.set_title("Figure 2: GATA3 expression by ER status\nTraining set")
-    ax2.grid(axis="y", alpha=0.25)
-
-    fig2.tight_layout()
-
-    # Figure 3
-
-    fig3, ax3 = plt.subplots(figsize=(6, 4.5))
 
     for label, class_name, color in zip(
         [0, 1], CLASS_NAMES, CLASS_COLORS
     ):
         mask = y_train == label
 
-        ax3.scatter(
+        ax1.scatter(
             X_train[mask, 0],
             X_train[mask, 1],
             label=class_name,
@@ -209,17 +139,75 @@ def main():
             edgecolors="none",
         )
 
-    ax3.set_xlabel("BCL2 expression (z-score)")
-    ax3.set_ylabel("GATA3 expression (z-score)")
-    ax3.set_title("Figure 3: BCL2 and GATA3 expression\nTraining set")
-    ax3.legend(title="IHC label")
-    ax3.grid(alpha=0.2)
+    ax1.set_xlabel("BCL2 expression (z-score)")
+    ax1.set_ylabel("GATA3 expression (z-score)")
+    ax1.set_title("Figure 1: BCL2 and GATA3 expression")
+    ax1.legend(title="IHC label")
+    ax1.grid(alpha=0.2)
 
-    fig3.tight_layout()
+    fig1.tight_layout()
 
-    # Figure 4: Test-set confusion matrix
+    # Figure 2: Learning curve using only the training set.
 
-    fig4, ax4 = plt.subplots(figsize=(6, 4.5))
+    cv = StratifiedKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=RANDOM_STATE,
+    )
+
+    train_sizes, train_scores, validation_scores = learning_curve(
+        estimator=model,
+        X=X_train,
+        y=y_train,
+        train_sizes=np.linspace(0.1, 1.0, 6),
+        cv=cv,
+        scoring="balanced_accuracy",
+        shuffle=True,
+        random_state=RANDOM_STATE,
+    )
+
+    train_mean = train_scores.mean(axis=1)
+    train_std = train_scores.std(axis=1)
+    validation_mean = validation_scores.mean(axis=1)
+    validation_std = validation_scores.std(axis=1)
+
+    fig2, ax2 = plt.subplots(figsize=(6, 4.5))
+
+    ax2.plot(
+        train_sizes, train_mean, "o-",
+        color=CLASS_COLORS[0], label="Training",
+    )
+    ax2.plot(
+        train_sizes, validation_mean, "o-",
+        color=CLASS_COLORS[1], label="Cross-validation",
+    )
+
+    ax2.fill_between(
+        train_sizes, train_mean - train_std, train_mean + train_std,
+        color=CLASS_COLORS[0], alpha=0.15,
+    )
+    ax2.fill_between(
+        train_sizes,
+        validation_mean - validation_std,
+        validation_mean + validation_std,
+        color=CLASS_COLORS[1], alpha=0.15,
+    )
+    ax2.axhline(
+        0.5, color="gray", linestyle="--", linewidth=1,
+        label="Majority-class baseline",
+    )
+
+    ax2.set_xlabel("Number of training samples per fit")
+    ax2.set_ylabel("Balanced accuracy")
+    ax2.set_title("Figure 2: Logistic regression learning curve")
+    ax2.legend()
+    ax2.grid(alpha=0.25)
+
+    fig2.tight_layout()
+
+    # Figure 3: Test-set confusion matrix
+
+    fig3, ax3 = plt.subplots(figsize=(6, 4.5))
 
     ConfusionMatrixDisplay.from_predictions(
         y_test,
@@ -229,20 +217,19 @@ def main():
         cmap="Blues",
         values_format="d",
         colorbar=False,
-        ax=ax4,
+        ax=ax3,
     )
 
-    ax4.set_title(
-        "Figure 4: Logistic regression — test set"
+    ax3.set_title(
+        "Figure 3: Logistic regression — test set"
     )
 
-    fig4.tight_layout()
+    fig3.tight_layout()
     
     figures = [
-            (fig1, "figure_1_bcl2_boxplot.png"),
-            (fig2, "figure_2_gata3_boxplot.png"),
-            (fig3, "figure_3_gene_expression_scatter.png"),
-            (fig4, "figure_4_confusion_matrix.png"),
+            (fig1, "figure_1_gene_expression_scatter.png"),
+            (fig2, "figure_2_learning_curve.png"),
+            (fig3, "figure_3_confusion_matrix.png"),
         ]
 
     for figure, filename in figures:
